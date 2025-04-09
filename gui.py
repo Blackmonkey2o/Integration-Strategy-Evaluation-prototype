@@ -61,7 +61,7 @@ class IntegrationGUI:
         input_frame.pack(fill="both", expand=True)
 
         ttk.Label(input_frame,
-                  text="Enter the number of strategies to compare (1-4):",
+                  text="Enter the number of strategies to compare (2-4):",
                   bootstyle="light").pack(pady=(10, 5), anchor="w")
 
         self.strategy_count_entry = ttk.Entry(input_frame,
@@ -80,12 +80,12 @@ class IntegrationGUI:
     def get_strategy_count(self):
         try:
             self.strategy_count = int(self.strategy_count_entry.get())
-            if self.strategy_count < 1 or self.strategy_count > 4:
-                messagebox.showerror("Error", "Please enter a number between 1 and 4.")
+            if self.strategy_count < 2 or self.strategy_count > 4:
+                messagebox.showerror("Error", "Please enter a number between 2 and 4.")
                 return
             self.create_input_screen()
         except ValueError:
-            messagebox.showerror("Error", "Invalid input. Enter a number between 1 and 4.")
+            messagebox.showerror("Error", "Invalid input. Enter a number between 2 and 4.")
 
     def create_input_screen(self):
         for widget in self.main_frame.winfo_children():
