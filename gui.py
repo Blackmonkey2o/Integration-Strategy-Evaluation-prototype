@@ -275,9 +275,10 @@ class IntegrationGUI:
                 scores.append(row_scores)
 
             scores = np.array(scores)
+            directions = ["max", "min", "min", "min", "max", "max"]
 
             #evaluate integration
-            results = evaluate_integration(self.strategies, self.weights, scores)
+            results = evaluate_integration(self.strategies, self.weights, scores, directions)
 
             #results
             result_text = "\n".join(
