@@ -5,11 +5,48 @@ import matplotlib.pyplot as plt
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
 from calculations import evaluate_integration, save_results_to_csv
-from utils import ToolTip  # Assuming ToolTip is defined in utils
+from utils import ToolTip
 import json
 import os
 from datetime import datetime
 import csv
+
+CATEGORY_TO_WEIGHT = {"Low": 0.1, "Medium": 0.3, "High": 0.5}
+
+INTEGRATION_WEIGHT_TEMPLATES = {
+    "Absorption": {
+        "Contribution to PMI goals": "High",
+        "Stakeholder support": "Low",
+        "User satisfaction": "Low",
+        "Integration cost": "Low",
+        "Integration time": "Low",
+        "Integration risk": "High"
+    },
+    "Symbiosis": {
+        "Contribution to PMI goals": "Medium",
+        "Stakeholder support": "Medium",
+        "User satisfaction": "Medium",
+        "Integration cost": "Medium",
+        "Integration time": "Medium",
+        "Integration risk": "Medium"
+    },
+    "Preservation": {
+        "Contribution to PMI goals": "Low",
+        "Stakeholder support": "High",
+        "User satisfaction": "High",
+        "Integration cost": "High",
+        "Integration time": "High",
+        "Integration risk": "Low"
+    },
+    "Transformation": {
+        "Contribution to PMI goals": "High",
+        "Stakeholder support": "Medium",
+        "User satisfaction": "High",
+        "Integration cost": "Low",
+        "Integration time": "Medium",
+        "Integration risk": "High"
+    }
+}
 
 class IntegrationGUI:
     def __init__(self, root):
@@ -33,6 +70,10 @@ class IntegrationGUI:
         self.create_initial_gui()
 
     def create_initial_gui(self):
+        # Clear old widgets before creating welcome
+        for widget in self.main_frame.winfo_children():
+            widget.destroy()
+
         welcome_frame = ttk.Frame(self.main_frame, bootstyle="secondary")
         welcome_frame.pack(fill="both", expand=True)
 
@@ -98,6 +139,7 @@ class IntegrationGUI:
         self.notebook = ttk.Notebook(self.main_frame)
         self.notebook.pack(fill="both", expand=True, padx=10, pady=10)
 
+        #tab1
         self.weights_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.weights_frame, text="Weighting Coefficients")
 
@@ -111,13 +153,20 @@ class IntegrationGUI:
         self.criteria = [
             "Contribution to PMI goals",
             "Stakeholder support",
-            "User  satisfaction",
+            "User satisfaction",
             "Integration cost",
             "Integration time",
             "Integration risk"
         ]
 
+        self.criteria_names = ["Contribution to PMI goals", "Stakeholder support", "User satisfaction", "Integration cost", "Integration time", "Integration risk"]
+
+        #comboboxes
         self.weight_vars = {}
+        self.weight_combos = []
+
+        avg_categories = self.get_average_categories_for_selected_strategies()
+
         for i, criterion in enumerate(self.criteria):
             row = ttk.Frame(weights_container)
             row.pack(fill="x", pady=5)
@@ -127,18 +176,22 @@ class IntegrationGUI:
                       width=25,
                       anchor="w").pack(side="left", padx=10)
 
-            weight_var = tk.StringVar(value="Low")
+            weight_var = tk.StringVar()
             combo = ttk.Combobox(row, textvariable=weight_var, values=["Low", "Medium", "High"], state="readonly")
+            default_cat = avg_categories.get(criterion, "Medium")
+            combo.set(default_cat)
             combo.pack(side="left")
+
             combo.bind("<<ComboboxSelected>>", self.update_weight_sum)
 
             self.weight_vars[criterion] = weight_var
+            self.weight_combos.append(combo)
 
         self.current_sum_label = ttk.Label(weights_container, text="Current Sum of Weights: 0.00", bootstyle="light")
         self.current_sum_label.pack(pady=(10, 0))
         self.update_weight_sum()
 
-        # Second tab with only the IS Integration Pair name entry
+        #tab2
         self.pair_frame = ttk.Frame(self.notebook)
         self.notebook.add(self.pair_frame, text="IS Integration Pair")
 
@@ -152,7 +205,6 @@ class IntegrationGUI:
         pair_entry = ttk.Entry(pair_container, textvariable=self.integration_pair_name_var)
         pair_entry.pack(fill="x")
 
-        # Buttons below notebook
         button_frame = ttk.Frame(self.main_frame)
         button_frame.pack(fill="x", padx=20, pady=10)
 
@@ -166,9 +218,35 @@ class IntegrationGUI:
                    bootstyle="success",
                    command=self.process_input).pack(side="right", padx=5)
 
+    def get_average_categories_for_selected_strategies(self):
+        if not hasattr(self, 'selected_strategy_types') or not self.selected_strategy_types:
+            return {crit: "Medium" for crit in self.criteria}
+
+        summed = {crit: 0 for crit in self.criteria}
+
+        for strategy in self.selected_strategy_types:
+            template = INTEGRATION_WEIGHT_TEMPLATES.get(strategy, {})
+            for crit in summed:
+                lvl = template.get(crit, "Medium")
+                summed[crit] += CATEGORY_TO_WEIGHT.get(lvl, 0.3)
+
+        count = len(self.selected_strategy_types)
+        avg_weights = {k: summed[k]/count for k in summed}
+
+        avg_categories = {}
+        for crit, avg in avg_weights.items():
+            if avg <= 0.25:
+                cat = "Low"
+            elif avg <= 0.35:
+                cat = "Medium"
+            else:
+                cat = "High"
+            avg_categories[crit] = cat
+        return avg_categories
+
     def update_weight_sum(self, event=None):
         WEIGHT_MAP = {"Low": 0.1, "Medium": 0.3, "High": 0.5}
-        raw_weights = [WEIGHT_MAP[w.get()] for w in self.weight_vars.values()]
+        raw_weights = [WEIGHT_MAP.get(w.get(), 0) for w in self.weight_vars.values()]
         total_weight = sum(raw_weights)
         self.current_sum_label.config(text=f"Current Sum of Weights: {total_weight:.2f}")
 
@@ -182,7 +260,10 @@ class IntegrationGUI:
             weights = []
             for criterion in self.criteria:
                 selection = self.weight_vars[criterion].get()
-                weights.append({"Low": 0.1, "Medium": 0.3, "High": 0.5}[selection])
+                if selection not in CATEGORY_TO_WEIGHT:
+                    messagebox.showerror("Error", f"Invalid weight category '{selection}'.")
+                    return
+                weights.append(CATEGORY_TO_WEIGHT[selection])
             total_weight = sum(weights)
             if abs(total_weight - 1.0) > 0.01:
                 weights = [w / total_weight for w in weights]
@@ -287,7 +368,7 @@ class IntegrationGUI:
 
             self.visualize_results(results, best_strategy)
 
-            # Save session history
+            #session history saving
             self.save_session_history({
                 "datetime": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "integration_pair": self.integration_pair_name,
@@ -297,7 +378,6 @@ class IntegrationGUI:
                 "final_results": results
             })
 
-            # Save results to CSV
             self.save_results_to_csv(results)
 
         except Exception as e:
@@ -308,7 +388,6 @@ class IntegrationGUI:
             self.session_history = []
         self.session_history.append(record)
 
-        # Save to JSON file
         folder = "sessions"
         if not os.path.exists(folder):
             os.makedirs(folder)
