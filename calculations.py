@@ -24,13 +24,12 @@ def normalize_data(scores, directions):
 def calculate_final_scores(normalized_scores, weights):
     return np.dot(normalized_scores, weights)
 
-# Evaluation function
+#evaluation function
 def evaluate_integration(strategies, weights, scores, directions):
     normalized_scores = normalize_data(scores, directions)
     final_scores = calculate_final_scores(normalized_scores, weights)
     return {strategies[i]: final_scores[i] for i in range(len(strategies))}
 
-# Save to CSV
 def save_results_to_csv(results, filename='results.csv'):
     df = pd.DataFrame(list(results.items()), columns=['Strategy', 'Final Score'])
     df.to_csv(filename, index=False)
